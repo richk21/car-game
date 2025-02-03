@@ -1,0 +1,13 @@
+/* Center the canvas in the middle of the screen */
+body {
+    margin: 0;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    height: 100vh;
+    background-color: #e0e0e0;  /* Background color of the body */
+}
+
+canvas {
+    border: 1px solid #000;
+}
