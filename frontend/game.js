@@ -9,6 +9,16 @@ Keys:
     UP: to accelerate the car
 There is a collision detection mechanism as well, when the car hits the hurdles(still under progress).
 END CONDITION: when car gets hit 10 times.
+
+BACKEND: This game is using 3 APIs.
+    1. '/Players' is a POST API. When the game initially starts on a new system, it would prompt the user to enter
+    their name. When that is entered, this API would check for a duplicate name. If duplicate exists, the user
+    would be prompted to enter a new name. If the name is unique, it would be stored in the database.
+    2. '/high-score/${name}' is a GET API. This API simply fetches the highsScore value against a player's name in
+    the database.
+    3. '/submit-score' is a POST API. This API is called when the game ends. It submits the score of the player and
+    then checks if the score is greater than the highScore of the player. If it is, the highScore is updated in the
+    database.
  */
 const canvas = document.getElementById('gameCanvas');
 const ctx = canvas.getContext('2d');
@@ -30,6 +40,7 @@ let carX = (canvas.width - carWidth) / 2; //car is initially in the middle lane
 let carY = canvas.height - carHeight + 40; // car is near the bottom of the screen
 let lane = 1; // 0 = left, 1 = middle, 2 = right
 let dashedLineOffset = 0;
+let playerName = localStorage.getItem("playerName");
 
 // Road variables
 const roadTopWidth = 200; // The width of the road at the top
@@ -54,7 +65,7 @@ let gravity = 10; // Speed by which car falls down
 //score and hits
 let score = 0;
 let hitCount = 0;
-const maxHits = 10; // Game over after 3 hits
+const maxHits = 3; // Game over after 3 hits
 
 
 let keys = {
@@ -118,13 +129,13 @@ function checkCollision() {
         // Check for a collision only if it's not already processed in this frame
         if (!collisionProcessed && carRight > hurdleLeft + 100 && carLeft < hurdleRight - 100 && carTop < hurdleBottom - 180 && carBottom > hurdleTop + 100) {
 
-            if (hitCount >= maxHits) {
+            if (hitCount == maxHits) {
                 drawEndGameScreen();
                 endGame();
             }
 
             boomVisible = true;
-            boomTimeout = 60; // Boom effect lasts for 60 frames
+            boomTimeout = 60;
             hurdle.hasCollided = true;
             collisionProcessed = true;
             break;
@@ -166,14 +177,12 @@ function showBoomEffect() {
     }
 }
 
-
 // Reduce the boom timeout and hide it after a certain duration
 function updateBoomEffect() {
     if (boomTimeout > 0) {
         if(boomTimeout === 99){
-            hitCount++;
+            ++hitCount;
         }
-        console.log(boomTimeout)
         boomTimeout--;
         if (boomTimeout <= 0) {
             boomVisible = false;
@@ -187,46 +196,26 @@ let lastHurdleY = 0;
 // Function to create a new hurdle
 function createHurdle() {
     let newHurdle;
-    let overlapDetected = true;
 
-    while (overlapDetected) {
-        const laneIndex = Math.floor(Math.random() * 3); //random lane
-        let newYPosition;
+    const laneIndex = Math.floor(Math.random() * 3); // random lane
+    let newYPosition;
 
-        if (hurdles.length === 0) {
-            newYPosition = -200;
-        } else {
-            newYPosition = lastHurdleY - hurdleVerticalGap;
-        }
-
-        newHurdle = {
-            x: (canvas.width - roadWidth) / 2 + laneIndex * laneWidth + laneWidth / 2 - hurdleWidth / 2,
-            y: newYPosition,
-            width: hurdleWidth,
-            height: hurdleHeight,
-            image: hurdleImage,
-            lane: laneIndex,
-            hasInitialCheckPassed: false,
-            hasCollided: false,
-        };
-
-        // Check for overlap with existing hurdles
-        overlapDetected = false;
-        for (let i = 0; i < hurdles.length; i++) {
-            const existingHurdle = hurdles[i];
-
-            const horizontalOverlap = newHurdle.x < existingHurdle.x + existingHurdle.width &&
-                                      newHurdle.x + newHurdle.width > existingHurdle.x;
-
-            const verticalOverlap = newHurdle.y < existingHurdle.y + existingHurdle.height &&
-                                    newHurdle.y + newHurdle.height > existingHurdle.y;
-
-            if (horizontalOverlap && verticalOverlap) {
-                overlapDetected = true;
-                break;
-            }
-        }
+    if (hurdles.length === 0) {
+        newYPosition = -200;
+    } else {
+        newYPosition = lastHurdleY - hurdleVerticalGap;
     }
+
+    newHurdle = {
+        x: (canvas.width - roadWidth) / 2 + laneIndex * laneWidth + laneWidth / 2 - hurdleWidth / 2,
+        y: newYPosition,
+        width: hurdleWidth,
+        height: hurdleHeight,
+        image: hurdleImage,
+        lane: laneIndex,
+        hasInitialCheckPassed: false,
+        hasCollided: false,
+    };
 
     hurdles.push(newHurdle);
 
@@ -322,29 +311,6 @@ function drawBackground() {
     ctx.fillRect(0, 0, canvas.width, canvas.height);  
 }
 
-function stop(){
-    // Resize the car and move it little bit backward
-    const step = 5;
-    const maxSize = 280;
-    if(carHeight < maxSize){
-        carHeight += step;
-        carY += step / 2;
-        dashedLineOffset -= 3;
-    }
-    if(carWidth < maxSize){
-        carWidth += step;
-        carX += step / 2;
-    }
-    carX = (canvas.width - carWidth) / 2;
-    carY = (canvas.height - carHeight) + 40;
-
-    if(carX == (canvas.width - carWidth) / 2 || carY == canvas.height - carHeight + 40){
-        dashedLineOffset = 0;
-        carHeight = 280;
-        carWidth = 280;
-    }
-}
-
 // Handle the jump and forward movement
 let lastLaneChange = -1;
 function moveCar() {
@@ -364,7 +330,6 @@ function moveCar() {
         carX = (canvas.width + roadWidth) / 2 - carWidth - 50;
     }
 
-    // Reset the lastLaneChange once key is released
     if (!keys.left && !keys.right) {
         lastLaneChange = -1;  // Allow for the next change once the key is pressed again
     }
@@ -378,14 +343,10 @@ function moveCar() {
         jump = true;
         jumpSpeed = 10;
     }
-
-    if(keys.down){
-        stop();
-    }
 }
 
 function move(){
-    // Resize the car and move it little bit forward
+    // Resize the car and move it bit forward
     const maxDisplacement = canvas.height - 150;
     if(carY > maxDisplacement){
         carY -= 5;
@@ -409,7 +370,7 @@ function move(){
 }
 
 let jumpSuccess = false;
-// Function to handle the car jumping mechanics
+// Function to handle car jump
 function updateJump() {
     if (jump) {
         carY -= jumpSpeed;
@@ -465,6 +426,101 @@ function drawScore() {
     ctx.fillText("Hits: " + hitCount, canvas.width - 20, 60);
 }
 
+async function checkPlayerNameAlreadyExists(playerName) {
+    const response = await fetch('http://localhost:5170/players', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ playerName: playerName }),
+    });
+
+    const data = await response.json();
+    
+    if (data.message === "New player registered successfully") {
+        localStorage.setItem('playerName', playerName);
+        return true;
+    } else if (data.message === "Player name already exists") {
+        alert(data.message);
+        return false;
+    } else {
+        console.error("Error registering player:", data.message);
+        alert(data.message);
+        return false;
+    }
+}
+
+async function drawPlayerName() {
+    if (!playerName) {
+        playerName = prompt("Player Name:");
+        
+        const registrationSuccess = await checkPlayerNameAlreadyExists(playerName);
+        
+        if (registrationSuccess) {
+            ctx.fillStyle = "black";
+            ctx.font = "bold 30px 'Press Start 2P', cursive";
+            ctx.textAlign = "left";
+            ctx.textBaseline = "top";
+            ctx.fillText("Player: " + playerName, 20, 20);
+        } else {
+            playerName = '';  // Clear playerName on error or name already exists
+        }
+    } else {
+        // If playerName is already set, draw it on the screen
+        ctx.fillStyle = "black";
+        ctx.font = "bold 30px 'Press Start 2P', cursive";
+        ctx.textAlign = "left";
+        ctx.textBaseline = "top";
+        ctx.fillText("Player: " + playerName, 20, 20);
+    }
+}
+
+async function getScore(name){
+    const response = await fetch(`http://localhost:5170/high-score/${name}`, {
+        method: 'GET',
+        headers: {
+            'Content-Type': 'application/json',
+        },
+    });
+
+    if(response.ok){
+        const data = await response.json();
+        return data.highScore;
+    }else{
+        console.error("error occurred: ", await response.json())
+        return null;
+    }
+}
+
+let highScore = null;
+async function drawHighScore(){
+    if(!highScore){
+        highScore = await getScore(playerName);
+    }
+    ctx.fillStyle = "black";
+    ctx.font = "bold 30px 'Press Start 2P', cursive";
+    ctx.textAlign = "left";
+    ctx.textBaseline = "top";
+    ctx.fillText(`High Score:${highScore}`, 20, 60);
+}
+    
+async function logScore(score){
+    const response = await fetch('http://localhost:5170/submit-score', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ playerName: playerName, score: score }),
+    });
+
+    const data = await response.json();
+
+    if (data.message === "Score submitted") {
+        console.log("Score submitted.");
+    } else {
+        console.error(data.message);
+    }
+}
 function drawEndGameScreen() {
     // Draw a black circle as the background
     ctx.fillStyle = "black";
@@ -482,6 +538,7 @@ function drawEndGameScreen() {
     // Draw the Score text
     ctx.font = "bold 30px 'Press Start 2P', cursive";
     ctx.fillText("Score: " + score, canvas.width / 2, canvas.height / 2 + 20);
+    logScore(score);
 }
 
 // Function to draw the road with perspective
@@ -535,24 +592,26 @@ function update() {
 
     drawBackground();
     drawRoad();
-
+    
     drawScore(); 
-
+    
     moveCar();  
     updateJump();
-
+    
     if (hasGameStarted) {
         moveAndDrawHurdles();
     }
-
+    
     handleCollision();
-
+    
     showBoomEffect();
     updateBoomEffect();
-
+    
     drawCar();
-
+    
     requestAnimationFrame(update);
+    drawPlayerName();
+    drawHighScore();
 }
 
 carImage.onload = function() {
