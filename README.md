@@ -7,7 +7,7 @@ This is a car game where the player controls a car navigating a road divided int
 - **Car Movement**: The car can navigate across three lanes and jump to avoid hurdles.
 - **Collision Detection**: A collision detection mechanism is implemented to detect when the car hits a hurdle. (Currently under progress)
 - **Score Tracking**: The player's score is displayed based on the number of successful jumps.
-- **End Condition**: The game ends when the car is hit 10 times.
+- **End Condition**: The game ends when the car is hit 3 times.
 
 ## Key Controls
 
@@ -36,7 +36,7 @@ The game utilizes three backend APIs to handle player data and high scores:
 1. The player starts the game by entering their name.
 2. The car moves across the three lanes, jumping over hurdles to avoid collisions.
 3. The player's score increases with successful jumps and decreases with collisions.
-4. The game ends after the car is hit 10 times.
+4. The game ends after the car is hit 3 times.
 5. The final score is submitted, and the player's high score is updated if necessary.
 
 ## Installation and Setup
